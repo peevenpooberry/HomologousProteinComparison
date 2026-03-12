@@ -1,4 +1,5 @@
-from dash import Dash, Input, Output, callback, html, dcc
+#!//usr/bin/python3
+from dash import Dash, html, dcc
 
 app = Dash()
 
