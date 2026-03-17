@@ -1,0 +1,8 @@
+numpy
+pandas
+biopython
+scikit-learn
+pathlib
+rsmd
+matplotlib
+seaborn
