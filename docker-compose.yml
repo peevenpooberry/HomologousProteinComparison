@@ -1,0 +1,22 @@
+---
+services:
+    redis:
+        image: redis:8
+        volumes:
+            - ./data:/data
+        user: "1000:1000"
+        ports:
+          - "6379:6379"
+
+    dashboard:
+        build:
+            context: ./
+            dockerfile: ./Dockerfile
+        depends_on:
+            - redis
+        image: peevenpooberry/conserved-docking-dashboard:1.0.0
+        user: "1000:1000"
+        ports:
+          - 8050:8050
+        command:
+          "python3 app.py"
