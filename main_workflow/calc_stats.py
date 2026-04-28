@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Optional
 
 import numpy as np
+import pandas as pd
 
 from Bio import AlignIO
 from Bio.PDB import MMCIFParser, PDBParser
@@ -49,6 +50,7 @@ class ProteinFile(BaseModel):
     PLDDT_per_res: list[float] = []
     PLDDT_scores: list[float] = []
     P2Rank_per_res: list[float] = []
+    final_score_per_res: list[float] = []
 
 class Session(BaseModel):
     model_config = {"arbitrary_types_allowed": True}
@@ -256,8 +258,28 @@ def p2rank_command(work_dir, session, p2rank_path, threads):
         sys.exit(1)
 
 
-# def parse_p2rank_output(work_dir):
-#     pass
+def parse_p2rank_output(work_dir, session, aa_map):
+    work_dir = Path(work_dir)
+    output_path = work_dir.joinpath("Output")
+
+    for protein in session.proteins:
+        path = f"{protein.protein_name}.cif_residues.csv"
+        full_path = output_path.joinpath(path)
+
+        with open(full_path, "r") as f:
+            p2rank_output = pd.read_csv(f, skipinitialspace=True)
+        
+        res_scores = p2rank_output.loc[:, "probability"]
+        protein.P2Rank_per_res = list(res_scores)
+
+
+def calculate_p2rank_conservation(henikoff_weights, alignment, session):
+    pass
+    # use alignment to map per protein score to aligned residues if "-" then 0
+    # normalize each row
+    # use henikoff_weights for each row to get final p2rank score for aligned residues
+    # return p2rank score
+
 
 # def calculate_final_score():
 #     pass
@@ -300,14 +322,18 @@ def main():
     # 9. P2Rank prediction
     p2rank_command(WORK_DIR, session, P2RANK_PATH, THREADS)
 
-    # # 10. Parse P2Rank output
-    # parse_p2rank_output(WORK_DIR)
+    # 10. Parse P2Rank output
+    parse_p2rank_output(WORK_DIR, session, AMINO_ACID_MAP)
 
-    # # 11. Final Score Calculation (Final Score = [Seq Conservation]^a * [PLDDT Score]^b * [P2Rank]^c)
+    # 11. P2Rank score merged via MSA and Henikoff weights
+    p2rank_conservation = calculate_p2rank_conservation(henikoff_weights, alignment, session)
+    session.P2Rank_score_conservation = p2rank_conservation
+
+    # # 12. Final Score Calculation (Final Score = [Seq Conservation]^a * [PLDDT Score]^b * [P2Rank]^c)
     # calculate_final_score()
 
-    # # 12. Mapping to each residue in original proteins
-    # # 13. Prepare output files
+    # # 13. Mapping to each residue in original proteins
+    # # 14. Prepare output files
 
 if __name__ == "__main__":
     main()
