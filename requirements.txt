@@ -4,3 +4,4 @@ dash_bio==1.0.2
 biopython==1.87
 pandas==3.0.2
 numpy==2.4.4
+pydantic==2.13.3
