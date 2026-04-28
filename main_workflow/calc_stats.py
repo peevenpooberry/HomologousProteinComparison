@@ -36,6 +36,9 @@ AMINO_ACID_MAP = {
 
 PLDDT_MEAN = 70
 PLDDT_SD = 5
+WEIGHT_SEQUENCE = 0.3
+WEIGHT_PLDDT = 0.2
+WEIGHT_P2RANK = 0.5
 
 # -------------------------
 # Classes
@@ -56,6 +59,7 @@ class Session(BaseModel):
     model_config = {"arbitrary_types_allowed": True}
 
     name: str
+    final_score: list[float] = []
     MSA_path: Optional[str] = None
     sequence_conservation: list[float] = []
     PLDDT_score_conservation: list[float] = []
@@ -281,8 +285,27 @@ def calculate_p2rank_conservation(henikoff_weights, alignment, session):
     # return p2rank score
 
 
-# def calculate_final_score():
-#     pass
+def normalize(scores):
+    x_min = min(scores)
+    x_max = max(scores)
+    if x_max == x_min:
+        return [0.0] * len(scores)
+    return [(x - x_min) / (x_max - x_min) for x in scores]
+
+
+def calculate_final_score(session, sequence_weight, plddt_weight, p2rank_weight):
+    sequence_conservation = normalize(session.sequence_conservation)
+    PLDDT_score_conservation = normalize(session.PLDDT_score_conservation)
+    P2Rank_score_conservation = normalize(session.P2Rank_score_conservation)
+
+    final_score = [
+        (seq ** sequence_weight) * (plddt ** plddt_weight) * (p2rank ** p2rank_weight)
+        for seq, plddt, p2rank 
+        in zip(sequence_conservation, PLDDT_score_conservation, P2Rank_score_conservation)
+    ]
+    
+    return normalize(final_score)
+
 
 # -------------------------
 # Workflow
@@ -329,11 +352,12 @@ def main():
     p2rank_conservation = calculate_p2rank_conservation(henikoff_weights, alignment, session)
     session.P2Rank_score_conservation = p2rank_conservation
 
-    # # 12. Final Score Calculation (Final Score = [Seq Conservation]^a * [PLDDT Score]^b * [P2Rank]^c)
-    # calculate_final_score()
+    # 12. Final Score Calculation (Final Score = [Seq Conservation]^a * [PLDDT Score]^b * [P2Rank]^c)
+    final_score = calculate_final_score(session, WEIGHT_SEQUENCE, WEIGHT_PLDDT, WEIGHT_P2RANK)
+    session.final_score = final_score
 
-    # # 13. Mapping to each residue in original proteins
-    # # 14. Prepare output files
+    # 13. Mapping to each residue in original proteins
+    # 14. Prepare output files
 
 if __name__ == "__main__":
     main()
