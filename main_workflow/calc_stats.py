@@ -244,15 +244,23 @@ def muscle_command(work_dir, muscle_exe, session):
     fasta_path = work_dir.joinpath("muscle_input.fasta")
     output_fasta = work_dir.joinpath(f"{session.name}_msa.fasta")
 
+    muscle_log = work_dir.joinpath(f"{session.name}_MUSCLE_log.txt")
+
     try:
-        subprocess.run([muscle_exe, "-align", fasta_path, "-output", output_fasta], 
+        result = subprocess.run([muscle_exe, 
+                        "-align", fasta_path, 
+                        "-output", output_fasta], 
                        check=True,
-                       stdout=subprocess.DEVNULL,
-                       stderr=subprocess.DEVNULL)
+                       stdout=subprocess.PIPE,
+                       stderr=subprocess.STDOUT,
+                       text=True)
+        with open(muscle_log, "w") as out:
+            out.writelines(result.stdout)
+
         alignment = AlignIO.read(output_fasta, "fasta")
 
     except subprocess.CalledProcessError as e:
-        print(f"Error with MUSCLE command: {e.stderr}")
+        logging.warning(f"Error with MUSCLE command: {e.stderr}")
         sys.exit(1)
 
     return alignment
@@ -377,22 +385,26 @@ def p2rank_command(work_dir: str, session: Session, p2rank_path: str, threads: i
     output_path = work_dir.joinpath("P2Rank_Output")
 
     session.P2Rank_output_path = output_path
+    p2rank_log = work_dir.joinpath(f"{session.name}_P2Rank_log.txt")
 
     try:
         output_path.mkdir(exist_ok=True)
-        subprocess.run(
+        result = subprocess.run(
         ["./prank", "predict",
         "-threads", str(threads),
         "-o", str(output_path),
         str(ds_path)],
         cwd=Path(p2rank_path),
         check=True,
-        capture_output=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
         text=True
         )
+        with open(p2rank_log, "w") as out:
+            out.writelines(result.stdout)
 
     except subprocess.CalledProcessError as e:
-        print(f"Error running P2Rank command: {e.stderr}")
+        logging.warning(f"Error running P2Rank command: {e.stderr}")
         sys.exit(1)
 
 
@@ -533,6 +545,8 @@ def prepare_output(output_dir: str, work_dir: str, session: Session):
 # -------------------------
 
 def main():
+    logging.info(f"Beginning process: {session.name}")
+
     session = Session(name=args.sessionname)
 
     input_dir = args.args.inputdir
@@ -544,43 +558,56 @@ def main():
     threads = args.threads
 
     # 1. Load all protein structure files
+    logging.info(f"Parsing structure files")
     proteins = parse_structure_files(input_dir, AMINO_ACID_MAP)
     session.proteins = proteins
+    logging.debug(f"Have parsed {len(session.proteins)} files successfully")
 
     # 2. Generate FASTA of all proteins for MSA generation
+    logging.debug("Generating .fasta for MSA generation")
     generate_fasta(work_dir, session)
 
     # 3. Generate MSA
+    logging.info(f"Generating MSA")
     alignment = muscle_command(work_dir, muscle_path, session)
     session.MSA_path = Path(work_dir).joinpath("muscle_input.fasta")
+    logging.debug("Generating sequence to alignment map")
     generate_sequence_alignment_maps(alignment, session)
 
     # 4. Calculate Henikoff weighting
+    logging.info("Calculating Henikoff Weights")
     henikoff_weights = calculate_henikoff_weights(alignment, session)
 
     # 5. Use BLOSSUM62 matrix for seq conservation score
+    logging.info("Calculating Sequence Conservation Score")
     seq_conservation = calculate_seq_conservation(alignment)
     session.sequence_conservation = seq_conservation
 
     # 6. Calculate PLDDT scores via Guassian Weight
     plddt_mean = args.plddtmean
     plddt_sd = args.plddtsd
+    logging.debug(f"Calculating PLDDT Scores using gaussian weight (mean: {plddt_mean}, sd: {plddt_sd})")
     calculate_plddt_scores(session, plddt_mean, plddt_sd)
 
-    # 7. PLDDT score merged via MSA and Henikoff weights        
+    # 7. PLDDT score merged via MSA and Henikoff weights
+    logging.info("Calculating PLDDT Conservation Score")        
     plddt_conservation = calculate_plddt_conservation(henikoff_weights, alignment, session)
     session.PLDDT_score_conservation = plddt_conservation
     
     # 8. Make .ds file containing paths to all the .pdb/.cif files
+    logging.debug("Generating .ds file for P2Rank Command")
     make_ds_file(work_dir, session)
 
     # 9. P2Rank prediction
+    logging.info("Beginning P2Rank binding site prediction")
     p2rank_command(work_dir, session, p2rank_path, threads)
 
     # 10. Parse P2Rank output
+    logging.debug("Parsing P2Rank output")
     parse_p2rank_output(work_dir, session)
 
     # 11. Calculate Conserved P2Rank score via MSA and Henikoff weights
+    logging.info("Calculating P2Rank Conservation Score")
     p2rank_conservation = calculate_p2rank_conservation(henikoff_weights, alignment, session)
     session.P2Rank_score_conservation = p2rank_conservation
 
@@ -588,14 +615,19 @@ def main():
     weight_seq = args.seqweight
     weight_plddt = args.plddtweight
     weight_p2rank = args.p2rankweight
+    logging.info(f"Calculating Final Score (a: {weight_seq}, b: {weight_plddt}, c: {weight_p2rank})")
     final_score = calculate_final_score(session, weight_seq, weight_plddt, weight_p2rank)
     session.final_score = final_score
 
     # 13. Mapping to each residue in original proteins
+    logging.debug("Mapping final score to protein residues")
     map_final_score_to_proteins(session)
 
     # 14. Prepare output files
+    logging.debug("Preparing Output and clearing Working Directory")
     prepare_output(output_dir, work_dir, session)
+
+    logging.info(f"Workflow Complete!")
 
 
 if __name__ == "__main__":
