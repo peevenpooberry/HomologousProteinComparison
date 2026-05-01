@@ -2,10 +2,13 @@
 
 import subprocess
 import sys
+import socket
 import json
 from pathlib import Path
 import shutil
 from typing import Optional
+import argparse
+import logging
 
 import numpy as np
 import pandas as pd
@@ -18,13 +21,12 @@ from Bio.Align import substitution_matrices
 # -------------------------
 # Constants
 # -------------------------
+
 THREADS = 2
 
-SESSION_NAME = "SESSION1"
-
-INPUT_DIR = "/home/ubuntu/Protein_Comparison/main_workflow/Input"
-WORK_DIR = "/home/ubuntu/Protein_Comparison/main_workflow/Work"
-OUTPUT_DIR = "/home/ubuntu/Protein_Comparison/main_workflow/Output"
+INPUT_DIR = "./Input"
+WORK_DIR = "./Work"
+OUTPUT_DIR = "./Output"
 
 P2RANK_PATH = "/home/ubuntu/Protein_Comparison/p2rank/p2rank_2.6.0-dev.7"
 MUSCLE_EXE = "/home/ubuntu/Protein_Comparison/MUSCLE/muscle-linux-x86.v5.3"
@@ -41,6 +43,100 @@ PLDDT_SD = 5
 WEIGHT_SEQUENCE = 0.3
 WEIGHT_PLDDT = 0.2
 WEIGHT_P2RANK = 0.5
+
+# -------------------------
+# Logging / Argparse
+# -------------------------
+
+parser = argparse.ArgumentParser(description='Summarize FASTQ file and output JSON summary')
+parser.add_argument(
+    '-n', '--sessionname',
+    required=True,
+    type=str,
+    help='The name of the current program session'
+)
+parser.add_argument(
+    '-m', '--musclepath',
+    type=str,
+    required=True,
+    help="The path to the MUSCLE binary or .exe file"
+)
+parser.add_argument(
+    '-p', '--p2rankpath',
+    required=True,
+    type=str,
+    help='The path to the built P2Rank directory'
+)
+parser.add_argument(
+    '-a', '--seqweight',
+    type=float,
+    default=WEIGHT_SEQUENCE,
+    help=f'The weight applied to the sequence conservation score when calculating the final score (default: {WEIGHT_SEQUENCE})'
+)
+parser.add_argument(
+    '-b','--plddtweight',
+    type=float,
+    default=WEIGHT_PLDDT,
+    help=f'The weight applied to the PLDDT conservation score when calculating the final score (default: {WEIGHT_PLDDT})'
+)
+parser.add_argument(
+    '-c', '--p2rankweight',
+    type=float,
+    default=WEIGHT_P2RANK,
+    help=f'The weight applied to the P2Rank conservation score when calculating the final score (default: {WEIGHT_P2RANK})'
+)
+parser.add_argument(
+    '-l', '--loglevel',
+    choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+    default='WARNING',
+    help='Set the logging level (default: WARNING)'
+)
+parser.add_argument(
+    '-t' '--threads',
+    type=int,
+    default=THREADS,
+    help=f'The number of threads to run programs on (default: {THREADS})'
+)
+parser.add_argument(
+    '-o', '--outputdir',
+    type=str,
+    default=OUTPUT_DIR,
+    help=f'The path to the output directory (default: {OUTPUT_DIR})'
+)
+parser.add_argument(
+    '-i', '--inputdir',
+    type=str,
+    default=INPUT_DIR,
+    help=f'The path to the input directory (default: {INPUT_DIR})'
+)
+parser.add_argument(
+    '-w', '--workdir',
+    type=str,
+    default=WORK_DIR,
+    help=f"The path to the work directory (default: {WORK_DIR})"
+)
+parser.add_argument(
+    '-u', 'plddtmean',
+    type=float,
+    default=PLDDT_MEAN,
+    help=f"The mean used for gaussian weighting of PLDDT scores (default: {PLDDT_MEAN})"
+)
+parser.add_argument(
+    's', '-plddtsd',
+    type=float,
+    default=PLDDT_SD,
+    help=f"The standard deviation used for gaussian weighting of PLDDT scores (default: {PLDDT_SD})"
+)
+parser.add_argument(
+
+)
+args = parser.parse_args()
+
+format_string = (
+    f'[%(asctime)s {socket.gethostname()}] '
+    '%(module)s.%(funcName)s:%(lineno)s - %(levelname)s - %(message)s'
+)
+logging.basicConfig(level=args.loglevel, format=format_string)
 
 # -------------------------
 # Classes
@@ -74,7 +170,7 @@ class Session(BaseModel):
 # Functions
 # -------------------------
 
-def parse_structure_files(input_dir, aa_map):
+def parse_structure_files(input_dir: str, aa_map: dict) -> list[ProteinFile]:
     cif_parser = MMCIFParser(QUIET=True)
     pdb_parser = PDBParser(QUIET=True)
 
@@ -126,7 +222,7 @@ def parse_structure_files(input_dir, aa_map):
     return proteins
 
 
-def generate_fasta(work_dir, session):
+def generate_fasta(work_dir: str, session: Session) -> AlignIO:
     work_dir = Path(work_dir)
     work_dir.mkdir(exist_ok=True)
     fasta_path = work_dir.joinpath("muscle_input.fasta")
@@ -162,7 +258,7 @@ def muscle_command(work_dir, muscle_exe, session):
     return alignment
 
 
-def create_alignment_order_map(alignment) -> dict:
+def create_alignment_order_map(alignment: AlignIO) -> dict:
     alignment_name_to_row = {rec.id: i for i, rec in enumerate(alignment)}
     return alignment_name_to_row
 
@@ -198,7 +294,7 @@ def calculate_henikoff_weights(alignment, session):
     return henikoff_weights
 
 
-def generate_sequence_alignment_maps(alignment, session):
+def generate_sequence_alignment_maps(alignment: AlignIO, session: Session):
     protein_to_alignment_row = create_alignment_order_map(alignment)
 
     for protein in session.proteins:
@@ -214,7 +310,7 @@ def generate_sequence_alignment_maps(alignment, session):
         protein.sequence_to_alignment_map = seq_to_align_map
 
 
-def calculate_seq_conservation(alignment):
+def calculate_seq_conservation(alignment: AlignIO) -> list:
     blosum = substitution_matrices.load("BLOSUM62") 
 
     scores = []
@@ -231,7 +327,7 @@ def calculate_seq_conservation(alignment):
     return scores
 
 
-def calculate_plddt_scores(session, mean, sd):
+def calculate_plddt_scores(session: Session, mean: float, sd: float) -> list:
     for protein in session.proteins:
         
         plddt_scores = []
@@ -241,7 +337,7 @@ def calculate_plddt_scores(session, mean, sd):
         protein.PLDDT_scores = plddt_scores
 
 
-def calculate_plddt_conservation(henikoff_weights, alignment, session):
+def calculate_plddt_conservation(henikoff_weights: list, alignment: AlignIO, session: Session) -> list:
     alignment_length = alignment.get_alignment_length()
     plddt_conservation = [0.0] * alignment_length
     weight_sums = [0.0] * alignment_length
@@ -264,7 +360,7 @@ def calculate_plddt_conservation(henikoff_weights, alignment, session):
     return plddt_conservation
 
 
-def make_ds_file(work_dir, session):
+def make_ds_file(work_dir: str, session: Session):
     work_dir = Path(work_dir)
     ds_path = work_dir.joinpath(f"{session.name}_p2rank.ds")
 
@@ -275,7 +371,7 @@ def make_ds_file(work_dir, session):
             file.write(f"{path}\n")
 
 
-def p2rank_command(work_dir, session, p2rank_path, threads):
+def p2rank_command(work_dir: str, session: Session, p2rank_path: str, threads: int):
     work_dir = Path(work_dir)
     ds_path = work_dir / f"{session.name}_p2rank.ds"
     output_path = work_dir.joinpath("P2Rank_Output")
@@ -300,7 +396,7 @@ def p2rank_command(work_dir, session, p2rank_path, threads):
         sys.exit(1)
 
 
-def parse_p2rank_output(work_dir, session, aa_map):
+def parse_p2rank_output(work_dir: str, session: Session):
     work_dir = Path(work_dir)
     output_path = work_dir.joinpath("P2Rank_Output")
 
@@ -315,7 +411,7 @@ def parse_p2rank_output(work_dir, session, aa_map):
         protein.P2Rank_per_res = list(res_scores)
 
 
-def normalize(scores):
+def normalize(scores: list) -> list:
     x_min = min(scores)
     x_max = max(scores)
     if x_max == x_min:
@@ -323,7 +419,7 @@ def normalize(scores):
     return [(x - x_min) / (x_max - x_min) for x in scores]
 
 
-def calculate_p2rank_conservation(henikoff_weights, alignment, session):
+def calculate_p2rank_conservation(henikoff_weights: list, alignment: AlignIO, session: Session) -> list:
     p2rank_conservation = [0.0] * alignment.get_alignment_length()
     weight_sums = [0.0] * alignment.get_alignment_length()
 
@@ -347,7 +443,7 @@ def calculate_p2rank_conservation(henikoff_weights, alignment, session):
     return p2rank_conservation
 
 
-def calculate_final_score(session, sequence_weight, plddt_weight, p2rank_weight):
+def calculate_final_score(session: Session, sequence_weight: float, plddt_weight: float, p2rank_weight: float) -> list:
     sequence_conservation = normalize(session.sequence_conservation)
     PLDDT_score_conservation = normalize(session.PLDDT_score_conservation)
     P2Rank_score_conservation = normalize(session.P2Rank_score_conservation)
@@ -361,7 +457,7 @@ def calculate_final_score(session, sequence_weight, plddt_weight, p2rank_weight)
     return normalize(final_score)
 
 
-def reverse_dict(given_dict):
+def reverse_dict(given_dict: dict) -> dict:
     return_dict = {}
     for key in given_dict.keys():
         val = given_dict[key]
@@ -370,7 +466,7 @@ def reverse_dict(given_dict):
     return return_dict
 
 
-def map_final_score_to_proteins(session):
+def map_final_score_to_proteins(session: Session):
     final_score = session.final_score
 
     for protein in session.proteins:
@@ -385,7 +481,7 @@ def map_final_score_to_proteins(session):
         protein.final_score_per_res = final_score_per_res
 
 
-def prepare_output(output_dir, work_dir, session):
+def prepare_output(output_dir: str, work_dir: str, session: Session):
 
     output_dir = Path(output_dir)
     work_dir = Path(work_dir)
@@ -432,27 +528,34 @@ def prepare_output(output_dir, work_dir, session):
                 shutil.rmtree(item)
 
 
-
 # -------------------------
 # Workflow
 # -------------------------
 
 def main():
-    session = Session(name= SESSION_NAME)
+    session = Session(name=args.sessionname)
+
+    input_dir = args.args.inputdir
+    work_dir = args.workdir
+    output_dir = args.outputdir
+    
+    muscle_path = args.musclepath
+    p2rank_path = args.p2rankpath
+    threads = args.threads
 
     # 1. Load all protein structure files
-    proteins = parse_structure_files(INPUT_DIR, AMINO_ACID_MAP)
+    proteins = parse_structure_files(input_dir, AMINO_ACID_MAP)
     session.proteins = proteins
 
     # 2. Generate FASTA of all proteins for MSA generation
-    generate_fasta(WORK_DIR, session)
+    generate_fasta(work_dir, session)
 
     # 3. Generate MSA
-    alignment = muscle_command(WORK_DIR, MUSCLE_EXE, session)
-    session.MSA_path = Path(WORK_DIR).joinpath("muscle_input.fasta")
+    alignment = muscle_command(work_dir, muscle_path, session)
+    session.MSA_path = Path(work_dir).joinpath("muscle_input.fasta")
     generate_sequence_alignment_maps(alignment, session)
 
-    # 4. Calculate Henikoff weighting (Bio.Align.MultipleSeqAlignment)
+    # 4. Calculate Henikoff weighting
     henikoff_weights = calculate_henikoff_weights(alignment, session)
 
     # 5. Use BLOSSUM62 matrix for seq conservation score
@@ -460,34 +563,40 @@ def main():
     session.sequence_conservation = seq_conservation
 
     # 6. Calculate PLDDT scores via Guassian Weight
-    calculate_plddt_scores(session, PLDDT_MEAN, PLDDT_SD)
+    plddt_mean = args.plddtmean
+    plddt_sd = args.plddtsd
+    calculate_plddt_scores(session, plddt_mean, plddt_sd)
 
-    # 8. PLDDT score merged via MSA and Henikoff weights        
+    # 7. PLDDT score merged via MSA and Henikoff weights        
     plddt_conservation = calculate_plddt_conservation(henikoff_weights, alignment, session)
     session.PLDDT_score_conservation = plddt_conservation
     
-    # 9. make .ds file containing paths to all the pdb/cif files
-    make_ds_file(WORK_DIR, session)
+    # 8. Make .ds file containing paths to all the .pdb/.cif files
+    make_ds_file(work_dir, session)
 
-    # 10. P2Rank prediction
-    p2rank_command(WORK_DIR, session, P2RANK_PATH, THREADS)
+    # 9. P2Rank prediction
+    p2rank_command(work_dir, session, p2rank_path, threads)
 
-    # 11. Parse P2Rank output
-    parse_p2rank_output(WORK_DIR, session, AMINO_ACID_MAP)
+    # 10. Parse P2Rank output
+    parse_p2rank_output(work_dir, session)
 
-    # 12. P2Rank score merged via MSA and Henikoff weights
+    # 11. Calculate Conserved P2Rank score via MSA and Henikoff weights
     p2rank_conservation = calculate_p2rank_conservation(henikoff_weights, alignment, session)
     session.P2Rank_score_conservation = p2rank_conservation
 
-    # 13. Final Score Calculation (Final Score = [Seq Conservation]^a * [PLDDT Score]^b * [P2Rank]^c)
-    final_score = calculate_final_score(session, WEIGHT_SEQUENCE, WEIGHT_PLDDT, WEIGHT_P2RANK)
+    # 12. Final Score Calculation (Final Score = [Seq Conservation]^a * [PLDDT Conservation]^b * [P2Rank Conservation]^c)
+    weight_seq = args.seqweight
+    weight_plddt = args.plddtweight
+    weight_p2rank = args.p2rankweight
+    final_score = calculate_final_score(session, weight_seq, weight_plddt, weight_p2rank)
     session.final_score = final_score
 
-    # 14. Mapping to each residue in original proteins
+    # 13. Mapping to each residue in original proteins
     map_final_score_to_proteins(session)
 
-    # 15. Prepare output files
-    prepare_output(OUTPUT_DIR, WORK_DIR, session)
+    # 14. Prepare output files
+    prepare_output(output_dir, work_dir, session)
+
 
 if __name__ == "__main__":
     main()
