@@ -127,9 +127,7 @@ parser.add_argument(
     default=PLDDT_SD,
     help=f"The standard deviation used for gaussian weighting of PLDDT scores (default: {PLDDT_SD})"
 )
-parser.add_argument(
 
-)
 args = parser.parse_args()
 
 format_string = (
