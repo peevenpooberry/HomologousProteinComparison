@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+
 import os
 import base64
 import json
@@ -213,11 +214,11 @@ def build_residue_plot(session_name: str, meta: dict, slot: int = 0):
 
 # ── Slider config ─────────────────────────────────────────────────────────────
 SLIDERS = [
-    ("seq-weight",    "Sequence conservation weight (a)", 0.0, 2.0, 0.01, 0.3),
-    ("plddt-weight",  "pLDDT weight (b)",                 0.0, 2.0, 0.01, 0.2),
-    ("p2rank-weight", "P2Rank weight (c)",                0.0, 2.0, 0.01, 0.5),
-    ("gauss-mean",    "Gaussian mean (pLDDT)",            0,   100, 1,    70),
-    ("gauss-std",     "Gaussian std dev",                 1,   30,  0.5,  5),
+    ("seq-weight",    "Sequence Conservation weight (a)",       0.0, 2.0, 0.01, 0.3),
+    ("plddt-weight",  "pLDDT Score Conservation weight (b)",    0.0, 2.0, 0.01, 0.2),
+    ("p2rank-weight", "P2Rank Score Conservation weight (c)",   0.0, 2.0, 0.01, 0.5),
+    ("gauss-mean",    "Gaussian mean (pLDDT)",                  0,   100, 1,    70),
+    ("gauss-std",     "Gaussian std dev (pLDDT)",               1,   30,  0.5,  5),
 ]
 
 def make_slider_row(slider_id, label, min_val, max_val, step, default):
@@ -367,13 +368,42 @@ app.layout = dbc.Container(fluid=True, style={"backgroundColor": "#f5f5f3", "min
                 html.Div(id="run-status", style={"marginTop": "0.5rem", "minHeight": "24px"}),
             ])])
         ]),
-        dbc.Col(width=5, children=[
-            dbc.Card(style=CARD, children=[dbc.CardBody(style={"padding": "1.25rem"}, children=[
-                html.H6("Scoring weights", style={"fontWeight": "500", "marginBottom": "1rem", "fontSize": "13px",
-                                                   "textTransform": "uppercase", "letterSpacing": "0.05em", "color": "#888"}),
-                *[make_slider_row(*s) for s in SLIDERS],
-            ])])
-        ]),
+            dbc.Col(width=5, children=[
+                    dbc.Card(style=CARD, children=[
+                        dbc.CardBody(
+                            style={"padding": "1.25rem"},
+                            children=[
+                                html.H6(
+                                    "Scoring weights",
+                                    style={
+                                        "fontWeight": "500",
+                                        "marginBottom": "1rem",
+                                        "fontSize": "13px",
+                                        "textTransform": "uppercase",
+                                        "letterSpacing": "0.05em",
+                                        "color": "#888",
+                                    },
+                                ),
+
+                                html.H6("Final Score", style={"marginBottom": "0.5rem"}),
+
+                                dcc.Markdown(
+                                    r"""
+                $$
+                \log(S) = a \cdot \log(\text{Sequence Conservation})
+                + b \cdot \log(\text{PLDDT Score Conservation})
+                + c \cdot \log(\text{P2Rank Score Conservation})
+                $$
+                """,
+                                    mathjax=True,
+                                    style={"fontSize": "16px"},
+                                ),
+
+                                *[make_slider_row(*s) for s in SLIDERS],
+                            ],
+                        )
+                    ])
+                ]),
         dbc.Col(width=3, children=[
             dbc.Card(style=CARD, children=[dbc.CardBody(style={"padding": "1.25rem"}, children=[
                 html.H6("pLDDT gaussian weight", style={"fontWeight": "500", "marginBottom": "0.5rem",
@@ -446,7 +476,7 @@ app.layout = dbc.Container(fluid=True, style={"backgroundColor": "#f5f5f3", "min
     dbc.Row(className="g-3 mb-3", children=[
         dbc.Col(width=12, children=[
             dbc.Card(style=CARD, children=[dbc.CardBody(style={"padding": "1.25rem"}, children=[
-                html.H6("Per-residue scores", style={"fontWeight": "500", "marginBottom": "0.75rem",
+                html.H6("Per-aligned residue scores", style={"fontWeight": "500", "marginBottom": "0.75rem",
                                                       "fontSize": "13px", "textTransform": "uppercase",
                                                       "letterSpacing": "0.05em", "color": "#888"}),
                 html.Div(id="residue-plot-container", style={"minHeight": "300px"}, children=[
@@ -979,4 +1009,4 @@ def download_zip(n_clicks, session_name):
                      style={"fontSize": "12px", "padding": "6px 10px", "marginBottom": 0})
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8050, debug=True)
+    app.run(host="0.0.0.0", port=8050, debug=False)
