@@ -9,14 +9,15 @@ import shutil
 from typing import Optional
 import argparse
 import logging
+from collections import Counter
 
 import numpy as np
 import pandas as pd
 
 from Bio import AlignIO
 from Bio.PDB import MMCIFParser, PDBParser
-from pydantic import BaseModel, Field
 from Bio.Align import substitution_matrices
+from pydantic import BaseModel, Field
 
 # -------------------------
 # Constants
@@ -27,9 +28,6 @@ THREADS = 2
 INPUT_DIR = "./Input"
 WORK_DIR = "./Work"
 OUTPUT_DIR = "./Output"
-
-P2RANK_PATH = "/home/ubuntu/Protein_Comparison/p2rank/p2rank_2.5.1"
-MUSCLE_EXE = "/home/ubuntu/Protein_Comparison/MUSCLE/muscle-linux-x86.v5.3"
 
 AMINO_ACID_MAP = {
     "ALA": "A", "ARG": "R", "ASN": "N", "ASP": "D", "CYS": "C",
@@ -234,13 +232,15 @@ def parse_structure_files(input_dir: str, aa_map: dict) -> list[ProteinFile]:
     input_dir = Path(input_dir)
     for file in input_dir.iterdir():
         structure = None
-        if file.is_file:
+        if file.is_file():
             file_name = file.stem
-            with open(file, "r") as f:
-                if str(file).endswith(".pdb"):
-                    structure = pdb_parser.get_structure(file_name, f)
-                elif str(file).endswith(".cif"):
-                    structure = cif_parser.get_structure(file_name, f)
+            if file.suffix not in [".pdb", ".cif"]:
+                continue
+        with open(file, "r") as f:
+            if file.suffix == ".pdb":
+                structure = pdb_parser.get_structure(file_name, f)
+            elif file.suffix == ".cif":
+                structure = cif_parser.get_structure(file_name, f)
         
         if structure:
         # for each structure need to get
@@ -302,7 +302,7 @@ def muscle_command(work_dir: str, muscle_path: str, session: Session) -> AlignIO
     muscle_log = work_dir.joinpath(f"{session.name}_MUSCLE_log.txt")
 
     try:
-        result = subprocess.run([muscle.path, 
+        result = subprocess.run([muscle_path, 
                         "-align", fasta_path, 
                         "-output", output_fasta], 
                        check=True,
@@ -400,7 +400,7 @@ def calculate_seq_conservation(alignment: AlignIO) -> list:
                 a, b = column[res1], column[res2]
                 column_score.append(blosum[a, b])
         scores.append(float(np.mean(column_score)) if column_score else 0)
-    return scores
+    return normalize(scores)
 
 
 def normalize(scores: list) -> list:
@@ -655,7 +655,7 @@ def prepare_output(output_dir: str, work_dir: str, session: Session):
 def main():
     session = Session(name=args.sessionname)
 
-    input_dir = args.args.inputdir
+    input_dir = args.inputdir
     work_dir = args.workdir
     output_dir = args.outputdir
     
