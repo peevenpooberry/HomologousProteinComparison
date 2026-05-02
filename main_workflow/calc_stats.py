@@ -1,4 +1,4 @@
-#!//usr/bin/python3
+#!/usr/bin/env python3
 
 import subprocess
 import sys
@@ -15,7 +15,7 @@ import pandas as pd
 
 from Bio import AlignIO
 from Bio.PDB import MMCIFParser, PDBParser
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from Bio.Align import substitution_matrices
 
 # -------------------------
@@ -28,7 +28,7 @@ INPUT_DIR = "./Input"
 WORK_DIR = "./Work"
 OUTPUT_DIR = "./Output"
 
-P2RANK_PATH = "/home/ubuntu/Protein_Comparison/p2rank/p2rank_2.6.0-dev.7"
+P2RANK_PATH = "/home/ubuntu/Protein_Comparison/p2rank/p2rank_2.5.1"
 MUSCLE_EXE = "/home/ubuntu/Protein_Comparison/MUSCLE/muscle-linux-x86.v5.3"
 
 AMINO_ACID_MAP = {
@@ -48,84 +48,89 @@ WEIGHT_P2RANK = 0.5
 # Logging / Argparse
 # -------------------------
 
-parser = argparse.ArgumentParser(description='Summarize FASTQ file and output JSON summary')
+parser = argparse.ArgumentParser(
+    description='Summarize FASTQ file and output JSON summary'
+)
+
 parser.add_argument(
     '-n', '--sessionname',
     required=True,
     type=str,
     help='The name of the current program session'
 )
+
 parser.add_argument(
     '-m', '--musclepath',
     type=str,
     required=True,
     help="The path to the MUSCLE binary or .exe file"
 )
+
 parser.add_argument(
     '-p', '--p2rankpath',
     required=True,
     type=str,
     help='The path to the built P2Rank directory'
 )
+
 parser.add_argument(
     '-a', '--seqweight',
     type=float,
-    default=WEIGHT_SEQUENCE,
-    help=f'The weight applied to the sequence conservation score when calculating the final score (default: {WEIGHT_SEQUENCE})'
+    default=WEIGHT_SEQUENCE
 )
+
 parser.add_argument(
-    '-b','--plddtweight',
+    '-b', '--plddtweight',
     type=float,
-    default=WEIGHT_PLDDT,
-    help=f'The weight applied to the PLDDT conservation score when calculating the final score (default: {WEIGHT_PLDDT})'
+    default=WEIGHT_PLDDT
 )
+
 parser.add_argument(
     '-c', '--p2rankweight',
     type=float,
-    default=WEIGHT_P2RANK,
-    help=f'The weight applied to the P2Rank conservation score when calculating the final score (default: {WEIGHT_P2RANK})'
+    default=WEIGHT_P2RANK
 )
+
 parser.add_argument(
     '-l', '--loglevel',
     choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
-    default='WARNING',
-    help='Set the logging level (default: WARNING)'
+    default='WARNING'
 )
+
 parser.add_argument(
-    '-t' '--threads',
+    '-t', '--threads',
     type=int,
-    default=THREADS,
-    help=f'The number of threads to run programs on (default: {THREADS})'
+    default=THREADS
 )
+
 parser.add_argument(
     '-o', '--outputdir',
     type=str,
-    default=OUTPUT_DIR,
-    help=f'The path to the output directory (default: {OUTPUT_DIR})'
+    default=OUTPUT_DIR
 )
+
 parser.add_argument(
     '-i', '--inputdir',
     type=str,
-    default=INPUT_DIR,
-    help=f'The path to the input directory (default: {INPUT_DIR})'
+    default=INPUT_DIR
 )
+
 parser.add_argument(
     '-w', '--workdir',
     type=str,
-    default=WORK_DIR,
-    help=f"The path to the work directory (default: {WORK_DIR})"
+    default=WORK_DIR
 )
+
 parser.add_argument(
-    '-u', 'plddtmean',
+    '-u', '--plddtmean',
     type=float,
-    default=PLDDT_MEAN,
-    help=f"The mean used for gaussian weighting of PLDDT scores (default: {PLDDT_MEAN})"
+    default=PLDDT_MEAN
 )
+
 parser.add_argument(
-    's', '-plddtsd',
+    '-s', '--plddtsd',
     type=float,
-    default=PLDDT_SD,
-    help=f"The standard deviation used for gaussian weighting of PLDDT scores (default: {PLDDT_SD})"
+    default=PLDDT_SD
 )
 
 args = parser.parse_args()
@@ -145,28 +150,80 @@ class ProteinFile(BaseModel):
 
     file_name: str
     file_path: Path
+
     sequence: list[str]
-    sequence_to_alignment_map: dict = {}
-    PLDDT_per_res: list[float] = []
-    PLDDT_scores: list[float] = []
-    P2Rank_per_res: list[float] = []
-    final_score_per_res: list[float] = []
+    sequence_to_alignment_map: dict[int, int] = Field(default_factory=dict)
+
+    PLDDT_per_res: list[float] = Field(default_factory=list)
+    PLDDT_scores: list[float] = Field(default_factory=list)
+
+    P2Rank_per_res: list[float] = Field(default_factory=list)
+                                        
+    final_score_per_res: list[float] = Field(default_factory=list)
+
 
 class Session(BaseModel):
     model_config = {"arbitrary_types_allowed": True}
 
     name: str
-    final_score: list[float] = []
-    MSA_path: Optional[str] = None
-    P2Rank_output_path: Optional[str] = None
-    sequence_conservation: list[float] = []
-    PLDDT_score_conservation: list[float] = []
-    P2Rank_score_conservation: list[float] = []
-    proteins: list[ProteinFile] = []
+
+    final_score: list[float] = Field(default_factory=list)
+
+    MSA_path: Optional[Path] = None
+    P2Rank_output_path: Optional[Path] = None
+
+    sequence_conservation: list[float] = Field(default_factory=list)
+    PLDDT_score_conservation: list[float] = Field(default_factory=list)
+    P2Rank_score_conservation: list[float] = Field(default_factory=list)
+
+    proteins: list[ProteinFile] = Field(default_factory=list)
 
 # -------------------------
 # Functions
 # -------------------------
+
+def compute_features(
+        input_dir: str, 
+        tmp_work_dir: str, 
+        plddt_mean: float, 
+        plddt_sd: float,
+        muscle_path: str,
+        p2rank_path: str
+        ) -> dict:
+    
+    session = Session(name="train")
+
+    proteins = parse_structure_files(input_dir, AMINO_ACID_MAP)
+    session.proteins = proteins
+
+    generate_fasta(tmp_work_dir, session)
+    alignment = muscle_command(tmp_work_dir, muscle_path, session)
+
+    generate_sequence_alignment_maps(alignment, session)
+    henikoff_weights = calculate_henikoff_weights(alignment, session)
+
+    session.sequence_conservation = calculate_seq_conservation(alignment)
+
+    calculate_plddt_scores(session, plddt_mean, plddt_sd)
+    session.PLDDT_score_conservation = calculate_plddt_conservation(
+        henikoff_weights, alignment, session
+    )
+
+    make_ds_file(tmp_work_dir, session)
+    p2rank_command(tmp_work_dir, session, p2rank_path, THREADS)
+    parse_p2rank_output(tmp_work_dir, session)
+
+    session.P2Rank_score_conservation = calculate_p2rank_conservation(
+        henikoff_weights, alignment, session
+    )
+
+    return {
+        "seq": session.sequence_conservation,
+        "plddt": session.PLDDT_score_conservation,
+        "p2rank": session.P2Rank_score_conservation,
+        "proteins": session.proteins
+    }
+
 
 def parse_structure_files(input_dir: str, aa_map: dict) -> list[ProteinFile]:
     cif_parser = MMCIFParser(QUIET=True)
@@ -237,7 +294,7 @@ def generate_fasta(work_dir: str, session: Session) -> AlignIO:
             file.write(f"{sequence}\n")
 
 
-def muscle_command(work_dir, muscle_exe, session):
+def muscle_command(work_dir: str, muscle_path: str, session: Session) -> AlignIO:
     work_dir = Path(work_dir)
     fasta_path = work_dir.joinpath("muscle_input.fasta")
     output_fasta = work_dir.joinpath(f"{session.name}_msa.fasta")
@@ -245,7 +302,7 @@ def muscle_command(work_dir, muscle_exe, session):
     muscle_log = work_dir.joinpath(f"{session.name}_MUSCLE_log.txt")
 
     try:
-        result = subprocess.run([muscle_exe, 
+        result = subprocess.run([muscle.path, 
                         "-align", fasta_path, 
                         "-output", output_fasta], 
                        check=True,
@@ -274,26 +331,39 @@ def calculate_henikoff_weights(alignment, session):
 
     n_seqs = len(alignment)
     alignment_length = alignment.get_alignment_length()
-    raw_weights = [0.0] * n_seqs
 
-    for i in range(alignment_length):
-        column = alignment[:, i]
-        column_lst = list(column)
-        non_gap_residues = [r for r in column_lst if r != "-"]
-        if not non_gap_residues:
+    raw_weights = np.zeros(n_seqs, dtype=float)
+
+    for col_idx in range(alignment_length):
+
+        column = list(alignment[:, col_idx])
+        non_gap = [r for r in column if r != "-"]
+
+        if not non_gap:
             continue
 
-        unique_col = set(non_gap_residues)
-        n_distinct = len(unique_col)
-        
-        for seq_index, res in enumerate(column_lst):
-            if res == "-":
-                continue
-            raw_weights[seq_index] += 1 / (n_distinct * column_lst.count(res))
+        counts = Counter(non_gap)
+        n_distinct = len(counts)
 
-    total = sum(raw_weights)
+        for seq_index, residue in enumerate(column):
+            if residue == "-":
+                continue
+
+            raw_weights[seq_index] += 1.0 / (
+                n_distinct * counts[residue]
+            )
+
+    total = raw_weights.sum()
+
+    if total == 0:
+        raw_weights[:] = 1.0 / n_seqs
+    else:
+        raw_weights /= total
+
     henikoff_weights = [
-        raw_weights[protein_to_alignment_row[protein.file_name]] / total
+        raw_weights[
+            protein_to_alignment_row[protein.file_name]
+        ]
         for protein in session.proteins
     ]
 
@@ -333,37 +403,69 @@ def calculate_seq_conservation(alignment: AlignIO) -> list:
     return scores
 
 
-def calculate_plddt_scores(session: Session, mean: float, sd: float) -> list:
+def normalize(scores: list) -> list:
+    arr = np.asarray(scores, dtype=float)
+    if arr.size == 0:
+        return []
+
+    x_min = arr.min()
+    x_max = arr.max()
+
+    if x_max == x_min:
+        return np.zeros_like(arr).tolist()
+
+    return ((arr - x_min) / (x_max - x_min)).tolist()
+
+
+def calculate_plddt_scores(session: Session, mean: float, sd: float):
+    denom = 2.0 * (sd ** 2)
+
     for protein in session.proteins:
-        
-        plddt_scores = []
-        for plddt in protein.PLDDT_per_res:
-            score = np.exp(-np.power(plddt - mean, 2.) / (2 * np.power(sd, 2.)))
-            plddt_scores.append(float(score))
-        protein.PLDDT_scores = plddt_scores
+        arr = np.asarray(
+            protein.PLDDT_per_res,
+            dtype=float
+        )
+
+        scores = np.exp(
+            -((arr - mean) ** 2) / denom
+        )
+
+        protein.PLDDT_scores = normalize(scores)
 
 
-def calculate_plddt_conservation(henikoff_weights: list, alignment: AlignIO, session: Session) -> list:
-    alignment_length = alignment.get_alignment_length()
-    plddt_conservation = [0.0] * alignment_length
-    weight_sums = [0.0] * alignment_length
+def calculate_plddt_conservation(
+    henikoff_weights: list,
+    alignment: AlignIO,
+    session: Session
+) -> list:
+
+    aln_len = alignment.get_alignment_length()
+
+    totals = np.zeros(aln_len, dtype=float)
+    weight_sums = np.zeros(aln_len, dtype=float)
 
     for row, protein in enumerate(session.proteins):
-        scores = protein.PLDDT_per_res
-        seq_to_align_map = protein.sequence_to_alignment_map
+
+        scores = protein.PLDDT_scores
+        seq_to_align = protein.sequence_to_alignment_map
         weight = henikoff_weights[row]
 
-        for index, score in enumerate(scores):
-            alignment_index = seq_to_align_map[index]
-            plddt_conservation[alignment_index] += score * weight
-            weight_sums[alignment_index] += weight
+        for seq_idx, score in enumerate(scores):
 
-    plddt_conservation = [
-        total / weight_sums[i] if weight_sums[i] > 0 else 0.0
-        for i, total in enumerate(plddt_conservation)
-    ]
+            aln_idx = seq_to_align[seq_idx]
 
-    return plddt_conservation
+            totals[aln_idx] += score * weight
+            weight_sums[aln_idx] += weight
+
+    result = np.divide(
+        totals,
+        weight_sums,
+        out=np.zeros_like(totals),
+        where=weight_sums > 0
+    )
+
+    return result.tolist()
+
 
 
 def make_ds_file(work_dir: str, session: Session):
@@ -420,15 +522,6 @@ def parse_p2rank_output(work_dir: str, session: Session):
         res_scores = p2rank_output.loc[:, "probability"]
         protein.P2Rank_per_res = list(res_scores)
 
-
-def normalize(scores: list) -> list:
-    x_min = min(scores)
-    x_max = max(scores)
-    if x_max == x_min:
-        return [0] * len(scores)
-    return [(x - x_min) / (x_max - x_min) for x in scores]
-
-
 def calculate_p2rank_conservation(henikoff_weights: list, alignment: AlignIO, session: Session) -> list:
     p2rank_conservation = [0.0] * alignment.get_alignment_length()
     weight_sums = [0.0] * alignment.get_alignment_length()
@@ -453,42 +546,59 @@ def calculate_p2rank_conservation(henikoff_weights: list, alignment: AlignIO, se
     return p2rank_conservation
 
 
-def calculate_final_score(session: Session, sequence_weight: float, plddt_weight: float, p2rank_weight: float) -> list:
-    sequence_conservation = normalize(session.sequence_conservation)
-    PLDDT_score_conservation = normalize(session.PLDDT_score_conservation)
-    P2Rank_score_conservation = normalize(session.P2Rank_score_conservation)
+def calculate_final_score(
+    session: Session,
+    sequence_weight: float,
+    plddt_weight: float,
+    p2rank_weight: float
+    ) -> list:
 
-    final_score = [
-        (seq ** sequence_weight) * (plddt ** plddt_weight) * (p2rank ** p2rank_weight)
-        for seq, plddt, p2rank 
-        in zip(sequence_conservation, PLDDT_score_conservation, P2Rank_score_conservation)
-    ]
-    
+    seq = np.asarray(normalize(session.sequence_conservation), dtype=float)
+    plddt = np.asarray(normalize(session.PLDDT_score_conservation), dtype=float)
+    p2rank = np.asarray(normalize(session.P2Rank_score_conservation), dtype=float)
+
+    eps = 1e-10
+    seq    = np.clip(seq,    eps, None)
+    plddt  = np.clip(plddt,  eps, None)
+    p2rank = np.clip(p2rank, eps, None)
+
+    log_score = (
+        sequence_weight  * np.log(seq) +
+        plddt_weight     * np.log(plddt) +
+        p2rank_weight    * np.log(p2rank)
+    )
+
+    final_score = np.exp(log_score)
+
     return normalize(final_score)
 
 
 def reverse_dict(given_dict: dict) -> dict:
-    return_dict = {}
-    for key in given_dict.keys():
-        val = given_dict[key]
-        return_dict[val] = key
-
-    return return_dict
+    return {v: k for k, v in given_dict.items()}
 
 
 def map_final_score_to_proteins(session: Session):
+
     final_score = session.final_score
 
     for protein in session.proteins:
-        final_score_per_res = [0.0] * len(protein.sequence)
-        map = protein.sequence_to_alignment_map
-        reverse_map = reverse_dict(map)
 
-        for index, score in enumerate(final_score):
-            if index in reverse_map.keys():
-                final_score_per_res[reverse_map[index]] += score
+        mapped = np.zeros(
+            len(protein.sequence),
+            dtype=float
+        )
 
-        protein.final_score_per_res = final_score_per_res
+        reverse_map = reverse_dict(
+            protein.sequence_to_alignment_map
+        )
+
+        for aln_idx, score in enumerate(final_score):
+
+            if aln_idx in reverse_map:
+                seq_idx = reverse_map[aln_idx]
+                mapped[seq_idx] = score
+
+        protein.final_score_per_res = mapped.tolist()
 
 
 def prepare_output(output_dir: str, work_dir: str, session: Session):
@@ -543,8 +653,6 @@ def prepare_output(output_dir: str, work_dir: str, session: Session):
 # -------------------------
 
 def main():
-    logging.info(f"Beginning process: {session.name}")
-
     session = Session(name=args.sessionname)
 
     input_dir = args.args.inputdir
@@ -554,6 +662,8 @@ def main():
     muscle_path = args.musclepath
     p2rank_path = args.p2rankpath
     threads = args.threads
+
+    logging.info(f"Beginning process: {session.name}")
 
     # 1. Load all protein structure files
     logging.info(f"Parsing structure files")
@@ -609,7 +719,7 @@ def main():
     p2rank_conservation = calculate_p2rank_conservation(henikoff_weights, alignment, session)
     session.P2Rank_score_conservation = p2rank_conservation
 
-    # 12. Final Score Calculation (Final Score = [Seq Conservation]^a * [PLDDT Conservation]^b * [P2Rank Conservation]^c)
+    # 12. Final Score Calculation (Final Score: logS = a(logSeq)+b(logPLDDT)+c(logP2Rank))
     weight_seq = args.seqweight
     weight_plddt = args.plddtweight
     weight_p2rank = args.p2rankweight

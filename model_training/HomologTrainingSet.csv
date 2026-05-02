@@ -1,0 +1,60 @@
+group,family,protein_name,species,uniprot_id,pdb_id,binding_site_type,key_binding_residues,notes
+1,Serine Protease,Trypsin,Bos taurus,P00760,1TRN,catalytic triad,"H57;D102;S195",canonical chymotrypsin numbering
+1,Serine Protease,Chymotrypsin A,Bos taurus,P00766,4CHA,catalytic triad,"H57;D102;S195",high sequence/structural homology
+1,Serine Protease,Elastase,Sus scrofa,P00772,1ELA,catalytic triad,"H57;D102;S195",substrate pocket differs
+1,Serine Protease,Thrombin,Homo sapiens,P00734,1PPB,catalytic triad,"H57;D102;S195",coagulation protease
+1,Serine Protease,Factor Xa,Homo sapiens,P00742,2P16,catalytic triad,"H57;D102;S195",drug target protease
+
+2,Protein Tyrosine Phosphatase,PTP1B,Homo sapiens,P18031,2HNP,active site,"C215;R221;D181",HCX5R motif family
+2,Protein Tyrosine Phosphatase,TCPTP,Homo sapiens,P17706,1L8K,active site,"C216;R222;D182",close homolog of PTP1B
+2,Protein Tyrosine Phosphatase,SHP2,Homo sapiens,Q06124,2SHP,active site,"C459;R465;D425",regulatory phosphatase
+2,Protein Tyrosine Phosphatase,SHP1,Homo sapiens,P29350,3PS5,active site,"C453;R459;D419",immune signaling phosphatase
+2,Protein Tyrosine Phosphatase,CD45,Homo sapiens,P08575,1YGU,active site,"C828;R834;D796",receptor phosphatase domain
+
+3,Protein Kinase,CDK2,Homo sapiens,P24941,1HCK,ATP site,"K33;E51;D145",canonical kinase fold
+3,Protein Kinase,CDK6,Homo sapiens,Q00534,1XO2,ATP site,"K43;E61;D163",cell cycle kinase
+3,Protein Kinase,CDK9,Homo sapiens,P50750,3BLQ,ATP site,"K48;E66;D167",transcription kinase
+3,Protein Kinase,ERK2,Homo sapiens,P28482,2ERK,ATP site,"K52;D147",MAP kinase homolog
+3,Protein Kinase,p38 alpha,Homo sapiens,Q16539,1A9U,ATP site,"K53;D168",stress kinase
+
+4,Carbonic Anhydrase,CA II,Homo sapiens,P00918,1CA2,Zn catalytic site,"H94;H96;H119",benchmark metalloenzyme
+4,Carbonic Anhydrase,CA I,Homo sapiens,P00915,1AZM,Zn catalytic site,"H94;H96;H119",close CA II homolog
+4,Carbonic Anhydrase,CA IX,Homo sapiens,Q16790,3IAI,Zn catalytic site,"H94;H96;H119",tumor-associated isozyme
+4,Carbonic Anhydrase,CA XII,Homo sapiens,O43570,1JD0,Zn catalytic site,"H94;H96;H119",membrane isozyme
+4,Carbonic Anhydrase,CA XIV,Homo sapiens,Q9ULX7,5CJV,Zn catalytic site,"H94;H96;H119",brain-associated isozyme
+
+5,DHFR,Dihydrofolate Reductase,Homo sapiens,P00374,1U72,folate/NADPH site,"D27;F31;I60",human therapeutic target
+5,DHFR,Dihydrofolate Reductase,Escherichia coli,P0ABQ4,1RX2,folate/NADPH site,"D27;F31",bacterial benchmark enzyme
+5,DHFR,Dihydrofolate Reductase,Plasmodium falciparum,P13946,1J3I,folate/NADPH site,"D54;F58",antimalarial target
+5,DHFR,Dihydrofolate Reductase,Lactobacillus casei,P0A0K8,4DFR,folate/NADPH site,"D26;F30",classical model enzyme
+5,DHFR,Dihydrofolate Reductase,Mycobacterium tuberculosis,P9WNX1,1DG8,folate/NADPH site,"D27;F31",antibacterial target
+
+6,Cysteine Protease,Cathepsin B,Homo sapiens,P07858,1HUC,catalytic dyad,"C29;H199",lysosomal protease
+6,Cysteine Protease,Cathepsin L,Homo sapiens,P07711,1CS8,catalytic dyad,"C25;H163",papain-like fold
+6,Cysteine Protease,Cathepsin K,Homo sapiens,P43235,1ATK,catalytic dyad,"C25;H162",bone resorption protease
+6,Cysteine Protease,Papain,Carica papaya,P00784,9PAP,catalytic dyad,"C25;H159",canonical family member
+6,Cysteine Protease,Cruzain,Trypanosoma cruzi,P25779,1ME4,catalytic dyad,"C25;H162",parasite drug target
+
+7,Heat Shock Protein 90,Hsp90 alpha,Homo sapiens,P07900,3T0H,ATP-binding site,"D93;K58;T184",cytosolic chaperone
+7,Heat Shock Protein 90,Hsp90 beta,Homo sapiens,P08238,1UYM,ATP-binding site,"D88;K44;T171",close alpha homolog
+7,Heat Shock Protein 90,Grp94,Homo sapiens,P14625,1OZ3,ATP-binding site,"D149;K114",ER paralog
+7,Heat Shock Protein 90,Trap1,Homo sapiens,Q12931,4IPE,ATP-binding site,"D158;K123",mitochondrial paralog
+7,Heat Shock Protein 90,HtpG,Escherichia coli,P0A6Z3,2IOQ,ATP-binding site,"D79;K45",bacterial homolog
+
+8,Nuclear Receptor,Estrogen Receptor alpha,Homo sapiens,P03372,1A52,ligand-binding pocket,"E353;R394;H524",binds estradiol
+8,Nuclear Receptor,Estrogen Receptor beta,Homo sapiens,Q92731,1X7R,ligand-binding pocket,"E305;R346;H475",ER paralog
+8,Nuclear Receptor,Androgen Receptor,Homo sapiens,P10275,2AM9,ligand-binding pocket,"Q711;R752;T877",binds testosterone/antagonists
+8,Nuclear Receptor,Progesterone Receptor,Homo sapiens,P06401,1A28,ligand-binding pocket,"Q725;R766",steroid receptor family
+8,Nuclear Receptor,Glucocorticoid Receptor,Homo sapiens,P04150,1M2Z,ligand-binding pocket,"Q570;R611",cortisol receptor
+
+9,Beta Lactamase,TEM-1 beta-lactamase,Escherichia coli,P62593,1BTL,catalytic site,"S70;K73;E166",class A enzyme
+9,Beta Lactamase,SHV-1 beta-lactamase,Klebsiella pneumoniae,P0AD65,1SHV,catalytic site,"S70;K73;E166",TEM homolog
+9,Beta Lactamase,CTX-M-14,Escherichia coli,Q8SQ03,1YLT,catalytic site,"S70;K73;E166",extended-spectrum enzyme
+9,Beta Lactamase,KPC-2,Klebsiella pneumoniae,C7C442,2OV5,catalytic site,"S70;K73;E166",carbapenemase
+9,Beta Lactamase,AmpC beta-lactamase,Enterobacter cloacae,P00811,1KE4,catalytic site,"S64;K67;Y150",class C related family
+
+10,Aldo Keto Reductase,AKR1B1 Aldose Reductase,Homo sapiens,P15121,1ADS,NADPH/substrate site,"Y48;K77;H110;W111",diabetic complications target
+10,Aldo Keto Reductase,AKR1B10,Homo sapiens,O60218,1ZUA,NADPH/substrate site,"Y49;K78;H111;W112",oncology relevance
+10,Aldo Keto Reductase,AKR1C1,Homo sapiens,Q04828,1MRQ,NADPH/substrate site,"Y55;K84;H117",steroid metabolism
+10,Aldo Keto Reductase,AKR1C3,Homo sapiens,P42330,1S2A,NADPH/substrate site,"Y55;K84;H117",drug metabolism
+10,Aldo Keto Reductase,AKR1D1,Homo sapiens,P51857,3BUR,NADPH/substrate site,"Y58;K87;H120",bile acid synthesis
